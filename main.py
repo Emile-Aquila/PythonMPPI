@@ -35,21 +35,21 @@ def main():
 
     states = np.array(states)
 
-    def update(state_sampled_trajs, field, model, goal=planner.goal):
+    def update(state_sampled_trajs, field, goal=planner.goal):
         state, sampled_trajs = state_sampled_trajs
         ax.cla()
         ax.plot(goal[0], goal[1], "ro")
         ax.quiver(goal[0], goal[1], np.cos(goal[2]), np.sin(goal[2]))
         ax.plot(0, 0, "go")
         field.frame.plot(ax, non_fill=True)
-        model.plot(ax)
+        ax.add_patch(plt.Circle((state.pos.x, state.pos.y), 0.2, fill=False))
         ax.quiver(state.pos.x, state.pos.y, np.cos(state.pos.theta), np.sin(state.pos.theta))
         for sampled_traj in sampled_trajs:
             ax.plot(sampled_traj[:, 0], sampled_traj[:, 1], "g", alpha=0.1)
 
-    anim = FuncAnimation(fig, func=functools.partial(update, field=field, model=model),
+    anim = FuncAnimation(fig, func=functools.partial(update, field=field),
                          frames=zip(states, sampled_trajs_list), interval=100)
-    anim.save("output.mp4", writer="ffmpeg")
+    anim.save("output.gif", writer="imagemagick")
     plt.close()
 
 
