@@ -3,8 +3,7 @@ This repository contains the implementation of the Model Predictive Path Integra
 
 original paper: https://arxiv.org/abs/1405.7392
 
-![gif](https://github.com/Emile-Aquila/PythonMPPI/main/output.gif)
-
+![gif](https://github.com/Emile-Aquila/PythonMPPI/blob/main/output.gif)
 
 ## Requirements
 check the pyproject.toml file for the required packages. You can install them using the following command:
