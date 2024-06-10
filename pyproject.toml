@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "pythonmppi"
+version = "0.1.0"
+description = ""
+authors = ["Emile-Aquila <tmk8oakan6130@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+numpy = "^1.26.4"
+matplotlib = "^3.9.0"
+mpld3 = "^0.5.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
