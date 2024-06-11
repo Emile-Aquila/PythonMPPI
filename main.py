@@ -1,9 +1,9 @@
-from models.Robot_model import RobotState
+from models.robot_model import RobotState
 from mppi import MPPIPlanner
 from objects.field import Point2D, Field, GenTestField, Circle
 import numpy as np
 from models.veltypes import VOmega, VOmegaConstraints
-from models.DynamicsModel import ParallelTwoWheelVehicleModel
+from models.dynamics_model import ParallelTwoWheelVehicleModel
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import math

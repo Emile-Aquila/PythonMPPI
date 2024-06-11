@@ -1,7 +1,7 @@
 import numpy as np
-from models.Robot_model import RobotState
+from models.robot_model import RobotState
 from models.veltypes import VOmega
-from models.DynamicsModel import ParallelTwoWheelVehicleModel
+from models.dynamics_model import ParallelTwoWheelVehicleModel
 
 
 class MPPIPlanner:

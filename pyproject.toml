@@ -2,7 +2,7 @@
 name = "pythonmppi"
 version = "0.1.0"
 description = ""
-authors = ["Emile-Aquila <tmk8oakan6130@gmail.com>"]
+authors = ["Emile-Aquila"]
 readme = "README.md"
 
 [tool.poetry.dependencies]

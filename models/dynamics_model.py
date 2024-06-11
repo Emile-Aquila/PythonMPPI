@@ -5,7 +5,7 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(__file__))
-from Robot_model import RobotState, KinematicsModel
+from robot_model import RobotState, KinematicsModel
 from models.veltypes import VOmega, VOmegaConstraints
 
 
