@@ -40,7 +40,9 @@ def main():
         ax.cla()
         ax.plot(goal[0], goal[1], "ro")
         ax.quiver(goal[0], goal[1], np.cos(goal[2]), np.sin(goal[2]))
-        ax.plot(0, 0, "go")
+        ax.plot(0.5, 0.5, "go")
+        ax.quiver(0.5, 0.5, np.cos(0.0), np.sin(0.0))
+
         field.frame.plot(ax, non_fill=True)
         ax.add_patch(plt.Circle((state.pos.x, state.pos.y), 0.2, fill=False))
         ax.quiver(state.pos.x, state.pos.y, np.cos(state.pos.theta), np.sin(state.pos.theta))
