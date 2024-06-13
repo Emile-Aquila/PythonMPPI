@@ -15,6 +15,7 @@ def clip(value: float, min_value: float, max_value: float) -> float:
 class VOmega:
     v: float  # 符号付きのvelの大きさ
     omega: float  # \dot{theta}
+    size: int = 2
 
     def __add__(self, other):
         return self.__class__(self.v + other.v, self.omega + other.omega)

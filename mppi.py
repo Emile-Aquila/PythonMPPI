@@ -16,7 +16,8 @@ class MPPIPlanner:
         self.sigma_omega: float = sigma_omega
 
         self.act_prev: VOmega = VOmega(0.0, 0.0)
-        self.input_traj_prev: np.ndarray = np.zeros((self.horizon, 2))
+        self._act_spec_size: int = self.act_prev.size
+        self.input_traj_prev: np.ndarray = np.zeros((self.horizon, self._act_spec_size))
         self.sampled_trajs: np.ndarray = np.zeros((self.num_samples, self.horizon, 5))
         self.goal: np.ndarray = np.array([0.0, 0.0, 0.0])
 
@@ -37,27 +38,36 @@ class MPPIPlanner:
 
     def _rollout(self, first_state: np.ndarray, base_acts: np.ndarray) -> np.ndarray:
         trajectory: np.ndarray = first_state.reshape(1, -1)
-        vs: np.ndarray = self.rng.normal(loc=0.0, scale=self.sigma_v, size=self.horizon) + base_acts[:, 0]
-        omegas: np.ndarray = self.rng.normal(loc=0.0, scale=self.sigma_omega, size=self.horizon) + base_acts[:, 1]
+        inputs: np.ndarray = self.rng.multivariate_normal(
+            mean=np.zeros(self._act_spec_size), cov=np.diag([self.sigma_v, self.sigma_omega]), size=self.horizon
+        ) + base_acts
 
-        for v, omega in zip(vs, omegas):
-            v_omega_pre = trajectory[-1][3:]
-            v_omega = self.model.constraints.clip_act_numpy(v_omega_pre, np.array([v, omega]))
-            new_traj = self.model.kinematics_numpy(trajectory[-1], v_omega, self.model.dt).reshape(1, -1)
+        for raw_input in inputs:
+            input_pre = trajectory[-1][-self._act_spec_size:]
+            tmp_input = self.model.constraints.clip_act_numpy(input_pre, raw_input)
+            new_traj = self.model.kinematics_numpy(trajectory[-1], tmp_input, self.model.dt).reshape(1, -1)
             trajectory = np.append(trajectory, new_traj, axis=0)
 
         return trajectory[1:]
 
+    def trajectory_costs(self, trajectories: np.ndarray) -> np.ndarray:
+        costs = np.array(
+            [[self.stage_cost(obs, self.goal) for obs in traj[0:-1]] + [self.terminal_cost(traj[-1], self.goal)] for traj in trajectories])
+        sum_costs = np.sum(costs, axis=1)
+        return sum_costs
+
     def policy(self, state: RobotState[VOmega]) -> VOmega:
         state_np = state.to_numpy()
+
+        # sample trajectories
         trajs = np.array([self._rollout(state_np, self.input_traj_prev) for _ in range(self.num_samples)])
-        input_trajs: np.ndarray = trajs[:, :, 3:]
+        input_trajs: np.ndarray = trajs[:, :, -self._act_spec_size:]
         self.sampled_trajs = trajs
 
-        costs = np.array(
-            [[self.stage_cost(obs, self.goal) for obs in traj[0:-1]] + [self.terminal_cost(traj[-1], self.goal)] for traj in trajs])
-        sum_costs = np.sum(costs, axis=1)
+        # calculate costs
+        sum_costs = self.trajectory_costs(trajs)
 
+        # importance sampling
         input_term = np.sum(
             np.sum(np.array([1 / self.sigma_v, 1 / self.sigma_omega]) * input_trajs * self.input_traj_prev, axis=2),
             axis=1)
@@ -68,7 +78,10 @@ class MPPIPlanner:
         for i, weight in enumerate(weights):
             input_trajs[i] = weight * input_trajs[i]
 
+        # calculate new input
         self.input_traj_prev = np.sum(input_trajs, axis=0)
-        self.act_prev = self.model.constraints.clip_act(self.act_prev,
-                                                        VOmega(self.input_traj_prev[0, 0], self.input_traj_prev[0, 1]))
+        self.act_prev = self.model.constraints.clip_act(
+            self.act_prev,
+            VOmega(self.input_traj_prev[0, 0], self.input_traj_prev[0, 1])
+        )
         return self.act_prev
