@@ -8,16 +8,18 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import math
 import functools
+import os
 
 
 def main():
     field: Field = GenTestField(0)
     dt = 0.1
+    n_cpu: int = os.cpu_count()
 
     constraints = VOmegaConstraints(1.0, 0.8, 0.2, 0.3)
     model = ParallelTwoWheelVehicleModel([Circle(0.0, 0.0, 0.2)], dt, constraints)
 
-    planner = MPPIPlanner(model, 40, 500, 0.3, 1.0, 0.8, 12)
+    planner = MPPIPlanner(model, 40, 500, 0.3, 1.0, 0.8, n_cpu)
     planner.set_goal(np.array([10.0, 10.0, math.pi / 2.0]))
     fig, ax = plt.subplots()
 
