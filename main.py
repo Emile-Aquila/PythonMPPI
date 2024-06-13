@@ -17,7 +17,7 @@ def main():
     constraints = VOmegaConstraints(1.0, 0.8, 0.2, 0.3)
     model = ParallelTwoWheelVehicleModel([Circle(0.0, 0.0, 0.2)], dt, constraints)
 
-    planner = MPPIPlanner(model, 40, 500, 0.3, 1.0, 0.8)
+    planner = MPPIPlanner(model, 40, 500, 0.3, 1.0, 0.8, 12)
     planner.set_goal(np.array([10.0, 10.0, math.pi / 2.0]))
     fig, ax = plt.subplots()
 
@@ -49,7 +49,7 @@ def main():
 
     anim = FuncAnimation(fig, func=functools.partial(update, field=field),
                          frames=zip(states, sampled_trajs_list), interval=100)
-    anim.save("output.gif", writer="imagemagick")
+    anim.save("output.gif", writer="pillow")
     plt.close()
 
 

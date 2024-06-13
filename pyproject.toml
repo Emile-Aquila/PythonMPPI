@@ -10,6 +10,8 @@ python = "^3.11"
 numpy = "^1.26.4"
 matplotlib = "^3.9.0"
 mpld3 = "^0.5.10"
+numba = "^0.59.1"
+ray = "^2.24.0"
 
 
 [build-system]
