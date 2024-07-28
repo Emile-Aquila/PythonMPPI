@@ -9,12 +9,14 @@ from matplotlib.animation import FuncAnimation
 import math
 import functools
 import os
+import time
 
 
 def main():
     field: Field = GenTestField(0)
     dt = 0.1
     n_cpu: int = os.cpu_count()
+    start_time = time.perf_counter()
 
     constraints = VOmegaConstraints(1.0, 0.8, 0.2, 0.3)
     model = ParallelTwoWheelVehicleModel([Circle(0.0, 0.0, 0.2)], dt, constraints)
@@ -36,6 +38,8 @@ def main():
         sampled_trajs_list.append(planner.sampled_trajs)
 
     states = np.array(states)
+    end_time = time.perf_counter()
+    print(f"elapsed time: {end_time - start_time} [s]")
 
     def update(state_sampled_trajs, field, goal=planner.goal):
         state, sampled_trajs = state_sampled_trajs
@@ -59,3 +63,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

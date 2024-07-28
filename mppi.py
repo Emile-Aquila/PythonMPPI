@@ -72,8 +72,6 @@ class MPPIPlanner:
     def trajectory_costs(self, trajectories: np.ndarray) -> np.ndarray:
         costs = self.stage_costs(trajectories[:, 0:-1, :], self.goal)
         costs += np.array([self.terminal_cost(traj[-1], self.goal) for traj in trajectories])
-        # costs = np.array([self.stage_costs(traj[0:-1], self.goal) + [self.terminal_cost(traj[-1], self.goal)] for traj in trajectories])
-        # sum_costs = np.sum(costs, axis=1)
         return costs
 
     def policy(self, state: RobotState[VOmega]) -> VOmega:

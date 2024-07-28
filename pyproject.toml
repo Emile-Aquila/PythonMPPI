@@ -12,6 +12,7 @@ matplotlib = "^3.9.0"
 mpld3 = "^0.5.10"
 numba = "^0.59.1"
 ray = "^2.24.0"
+jax = "^0.4.30"
 
 
 [build-system]
