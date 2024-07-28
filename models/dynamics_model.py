@@ -4,7 +4,7 @@ import numpy as np
 import sys
 import os
 import jax.numpy as jnp
-
+import jax
 sys.path.append(os.path.dirname(__file__))
 from robot_model import RobotState, KinematicsModel
 from models.veltypes import VOmega, VOmegaConstraints
@@ -32,6 +32,7 @@ class ParallelTwoWheelVehicleModel(KinematicsModel[VOmega]):
         return new_pos
 
     @staticmethod
+    @jax.jit
     def kinematic_jax(state: jnp.ndarray, act: jnp.ndarray, dt: float) -> jnp.ndarray:
         vel = (act + state[3:]) * 0.5
         new_pos = state[:3] + jnp.array([vel[0] * dt * jnp.cos(state[2]),
