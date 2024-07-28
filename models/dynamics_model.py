@@ -3,6 +3,7 @@ from objects.field import Point2D, Object
 import numpy as np
 import sys
 import os
+import jax.numpy as jnp
 
 sys.path.append(os.path.dirname(__file__))
 from robot_model import RobotState, KinematicsModel
@@ -28,4 +29,13 @@ class ParallelTwoWheelVehicleModel(KinematicsModel[VOmega]):
                                         vel[0] * dt * math.sin(state[2]),
                                         vel[1] * dt])
         new_pos = np.concatenate([new_pos, act])
+        return new_pos
+
+    @staticmethod
+    def kinematic_jax(state: jnp.ndarray, act: jnp.ndarray, dt: float) -> jnp.ndarray:
+        vel = (act + state[3:]) * 0.5
+        new_pos = state[:3] + jnp.array([vel[0] * dt * jnp.cos(state[2]),
+                                        vel[0] * dt * jnp.sin(state[2]),
+                                        vel[1] * dt])
+        new_pos = jnp.concatenate([new_pos, act])
         return new_pos

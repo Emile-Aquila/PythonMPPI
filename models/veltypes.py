@@ -3,6 +3,8 @@ import numpy as np
 import sys
 import os
 
+from jax import numpy as jnp
+
 sys.path.append(os.path.dirname(__file__))
 from robot_model import Constraints
 
@@ -56,7 +58,7 @@ class VOmegaConstraints(Constraints[VOmega]):
         self.max_d_v = max_d_v
         self.max_d_omega = max_d_omega
 
-    def get_feasible_input_space(self, vel: VOmega | np.ndarray) -> np.ndarray:
+    def get_feasible_input_space(self, vel: VOmega | np.ndarray | jnp.ndarray) -> np.ndarray:
         if isinstance(vel, VOmega):
             max_v = min(self.max_v, vel.v + self.max_d_v)
             min_v = max(-self.max_v, vel.v - self.max_d_v)
@@ -83,3 +85,9 @@ class VOmegaConstraints(Constraints[VOmega]):
         v = clip(act[0], input_spec[0][0], input_spec[0][1])
         omega = clip(act[1], input_spec[1][0], input_spec[1][1])
         return np.array([v, omega])
+
+    def clip_act_jax(self, act_pre: jnp.ndarray, act: jnp.ndarray) -> jnp.ndarray:
+        input_spec: jnp.ndarray = jnp.array(self.get_feasible_input_space(act_pre))
+        v = clip(act[0], input_spec[0][0], input_spec[0][1])
+        omega = clip(act[1], input_spec[1][0], input_spec[1][1])
+        return jnp.array([v, omega])

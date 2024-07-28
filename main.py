@@ -10,6 +10,7 @@ import math
 import functools
 import os
 import time
+import jax.numpy as jnp
 
 
 def main():
@@ -22,7 +23,7 @@ def main():
     model = ParallelTwoWheelVehicleModel([Circle(0.0, 0.0, 0.2)], dt, constraints)
 
     planner = MPPIPlanner(model, 40, 500, 0.3, 1.0, 0.8, n_cpu)
-    planner.set_goal(np.array([10.0, 10.0, math.pi / 2.0]))
+    planner.set_goal(jnp.array([10.0, 10.0, math.pi / 2.0]))
     fig, ax = plt.subplots()
 
     state: RobotState[VOmega] = RobotState(Point2D(0.5, 0.5, 0.0), VOmega(0.0, 0.0))
