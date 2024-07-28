@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 import copy
 import sys
 import os
-
 import numpy as np
+import jax.numpy as jnp
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from objects.field import Point2D, Object
@@ -57,6 +57,10 @@ class Constraints(Generic[ActType], ABC):
 
     @abstractmethod
     def clip_act_numpy(self, act_pre: np.ndarray, act: np.ndarray) -> np.ndarray:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def clip_act_jax(self, act_pre: jnp.ndarray, act: jnp.ndarray) -> jnp.ndarray:
         raise NotImplementedError()
 
 
