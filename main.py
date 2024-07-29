@@ -1,7 +1,3 @@
-import io
-
-import jax.lax
-
 from models.robot_model import RobotState
 from mppi import MPPIPlanner
 from objects.field import Point2D, Field, GenTestField, Circle
@@ -15,8 +11,6 @@ import functools
 import os
 import time
 import jax.numpy as jnp
-import cProfile
-import pstats
 
 
 def main():
