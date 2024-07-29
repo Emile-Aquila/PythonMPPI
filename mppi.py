@@ -56,17 +56,16 @@ class MPPIPlanner:
 
     @partial(jax.jit, static_argnums=(0,))
     def _rollout(self, sub_key: jax.random.PRNGKey, first_state: jnp.ndarray, base_acts: jnp.ndarray) -> jnp.ndarray:
-        trajectory: jnp.ndarray = first_state.reshape(1, -1)
-        inputs: jnp.ndarray = jax.random.multivariate_normal(sub_key, mean=self._mean, cov=self._cov,
-                                                             shape=(self.horizon,)) + base_acts
+        inputs: jnp.ndarray = jax.random.multivariate_normal(sub_key, mean=self._mean, cov=self._cov, shape=(self.horizon,)) + base_acts
 
-        for raw_input in inputs:
-            input_pre = trajectory[-1][-self._act_spec_size:]
-            tmp_input = self.model.constraints.clip_act_jax(input_pre, raw_input)
-            new_traj = self.model.kinematic_jax(trajectory[-1], tmp_input, self.model.dt).reshape(1, -1)
-            trajectory = jnp.append(trajectory, new_traj, axis=0)
+        def scan_fn(val, x):
+            input_pre = val[-self._act_spec_size:]
+            tmp_input = self.model.constraints.clip_act_jax(input_pre, x)
+            new_traj = self.model.kinematic_jax(val, tmp_input, self.model.dt).reshape(1, -1)
+            return new_traj[0], new_traj[0]
 
-        return trajectory[1:]
+        _, trajectory = jax.lax.scan(scan_fn, first_state, inputs)
+        return trajectory
 
     @partial(jax.jit, static_argnums=(0, -1))
     def rollout_n(self, sub_key: jax.random.PRNGKey, first_state: jnp.ndarray, base_acts: jnp.ndarray, n: int) -> jnp.ndarray:
@@ -84,7 +83,8 @@ class MPPIPlanner:
     def policy_jax(self, state_np: jnp.ndarray, key: jax.random.PRNGKey, act_prev: jnp.ndarray, input_traj_prev: jnp.ndarray) \
             -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         # sample trajectories
-        trajs = self.rollout_n(key, state_np, input_traj_prev, self.num_samples)
+        trajs = jax.vmap(lambda key: self.rollout_n(key, state_np, input_traj_prev, self.num_samples//self._n_cpu))(jax.random.split(key, self._n_cpu))
+        trajs = jnp.concatenate(trajs, axis=0)
         input_trajs: jnp.ndarray = trajs[:, :, -self._act_spec_size:]
 
         # calculate costs
@@ -92,14 +92,12 @@ class MPPIPlanner:
 
         # importance sampling
         input_term = jnp.sum(
-            jnp.sum(jnp.array([1 / self.sigma_v, 1 / self.sigma_omega]) * input_trajs * input_traj_prev, axis=2),
-            axis=1)
+            jnp.sum(jnp.array([1 / self.sigma_v, 1 / self.sigma_omega]) * input_trajs * input_traj_prev, axis=2), axis=1)
         sum_costs = -self.lambda_ * sum_costs - input_term
 
         weights = jnp.exp(sum_costs - jnp.max(sum_costs))
         weights /= jnp.sum(weights)
-        for i, weight in enumerate(weights):
-            input_trajs = input_trajs.at[i].set(weight * input_trajs[i])
+        input_trajs = jax.lax.fori_loop(0, len(weights), lambda i, val: val.at[i].set(weights[i] * val[i]), input_trajs)
 
         # calculate new input
         input_trajs = jnp.sum(input_trajs, axis=0)

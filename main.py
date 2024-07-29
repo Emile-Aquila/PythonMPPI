@@ -32,21 +32,24 @@ def main():
     fig, ax = plt.subplots()
 
     state: RobotState[VOmega] = RobotState(Point2D(0.5, 0.5, 0.0), VOmega(0.0, 0.0))
-    print(state.to_numpy())
 
-    # プロファイルオブジェクトを作成
-    pr = cProfile.Profile()
-    pr.enable()
-    act = planner.policy(state)
-    pr.disable()
+    # profile for planner.policy
+    # pr = cProfile.Profile()
+    # pr.enable()
+    # act = planner.policy(state)
+    # pr.disable()
 
-    s = io.StringIO()
-    sortby = 'cumulative'
-    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    ps.print_stats()
-    print(s.getvalue())
+    # s = io.StringIO()
+    # sortby = 'cumulative'
+    # ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    # ps.print_stats()
+    # print(s.getvalue())
 
-    # return 0
+    # jit compile
+    print("start jit compile")
+    planner.policy(state)
+    print("end jit compile")
+
     start_time = time.perf_counter()
     states = []
     sampled_trajs_list = []
@@ -84,4 +87,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

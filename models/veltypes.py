@@ -59,6 +59,7 @@ class VOmegaConstraints(Constraints[VOmega]):
         self.max_d_v = max_d_v
         self.max_d_omega = max_d_omega
 
+    @partial(jax.jit, static_argnums=(0,))
     def get_feasible_input_space(self, vel: VOmega | np.ndarray | jnp.ndarray) -> np.ndarray | jnp.ndarray:
         if isinstance(vel, VOmega):
             max_v = min(self.max_v, vel.v + self.max_d_v)
