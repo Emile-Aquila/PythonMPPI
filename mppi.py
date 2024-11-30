@@ -1,3 +1,4 @@
+from typing import Tuple
 import jax.numpy as jnp
 import jax
 from models.robot_model import RobotState
@@ -49,10 +50,14 @@ class MPPIPlanner:
 
     @staticmethod
     @jax.jit
-    def stage_costs(trajectories: jnp.ndarray, goal: jnp.ndarray) -> jnp.ndarray:
-        diff = trajectories[:, :, :3] - goal
-        diff = diff.at[:, :, 2].set(diff[:, :, 2] / 2.0)
-        return jnp.sqrt(jnp.power(diff, 2).sum(axis=-1)).sum(axis=-1)
+    def trajectory_cost(trajectory: jnp.ndarray, goal: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        cost_sum, costs = jax.lax.scan(
+            lambda val, input_x: (val + MPPIPlanner.stage_cost(input_x, goal), MPPIPlanner.stage_cost(input_x, goal)),
+            0.0, trajectory[0:-1, :]
+        )
+        terminal_cost = MPPIPlanner.terminal_cost(trajectory[-1], goal)
+        costs = jnp.concatenate([costs, jnp.array([terminal_cost])])
+        return cost_sum + terminal_cost, costs
 
     @partial(jax.jit, static_argnums=(0,))
     def _rollout(self, sub_key: jax.random.PRNGKey, first_state: jnp.ndarray, base_acts: jnp.ndarray) -> jnp.ndarray:
@@ -69,43 +74,43 @@ class MPPIPlanner:
 
     @partial(jax.jit, static_argnums=(0, -1))
     def rollout_n(self, sub_key: jax.random.PRNGKey, first_state: jnp.ndarray, base_acts: jnp.ndarray, n: int) -> jnp.ndarray:
-        _, ans = jax.lax.scan(lambda key, _: (jax.random.split(key)[1], self._rollout(key, first_state, base_acts)), sub_key, jnp.zeros(n))
+        ans = jax.vmap(self._rollout, in_axes=(0, None, None))(jax.random.split(sub_key, n), first_state, base_acts)
         return ans
 
     @partial(jax.jit, static_argnums=(0,))
-    def trajectory_costs(self, trajectories: jnp.ndarray) -> jnp.ndarray:
-        costs = self.stage_costs(trajectories[:, 0:-1, :], self.goal)
-        costs = jax.lax.fori_loop(0, self.num_samples,
-                                  lambda i, c: c.at[i].set(c[i] + self.terminal_cost(trajectories[i, -1], self.goal)), costs)
-        return costs
+    def calc_trajectory_costs(self, trajectories: jnp.ndarray, goal: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        cost_sums, costs = jax.vmap(lambda x: self.trajectory_cost(x, goal), in_axes=0)(trajectories)  # (num_samples,), (num_samples, horizon)
+        return cost_sums, costs
 
     @partial(jax.jit, static_argnums=(0,))
-    def policy_jax(self, state_np: jnp.ndarray, key: jax.random.PRNGKey, act_prev: jnp.ndarray, input_traj_prev: jnp.ndarray) \
-            -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def policy_jax(self, state: jnp.ndarray, goal: jnp.ndarray, act_prev: jnp.ndarray, input_traj_prev: jnp.ndarray, key: jax.random.PRNGKey) \
+            -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jax.random.PRNGKey]:
         # sample trajectories
-        trajs = jax.vmap(lambda key: self.rollout_n(key, state_np, input_traj_prev, self.num_samples//self._n_cpu))(jax.random.split(key, self._n_cpu))
-        trajs = jnp.concatenate(trajs, axis=0)
+        key, sub_key = jax.random.split(key)
+        trajs = self.rollout_n(sub_key, state, input_traj_prev, self.num_samples)
         input_trajs: jnp.ndarray = trajs[:, :, -self._act_spec_size:]
 
         # calculate costs
-        sum_costs = self.trajectory_costs(trajs)
+        cost_sums, costs  = self.calc_trajectory_costs(trajs, goal)
 
         # importance sampling
         input_term = jnp.sum(
             jnp.sum(jnp.array([1 / self.sigma_v, 1 / self.sigma_omega]) * input_trajs * input_traj_prev, axis=2), axis=1)
-        sum_costs = -self.lambda_ * sum_costs - input_term
+        cost_sums = -self.lambda_ * cost_sums - input_term
 
-        weights = jnp.exp(sum_costs - jnp.max(sum_costs))
+        cost_max = jnp.max(cost_sums)
+        weights = jax.vmap(lambda x: jnp.exp(x - cost_max))(cost_sums)
         weights /= jnp.sum(weights)
-        input_trajs = jax.lax.fori_loop(0, len(weights), lambda i, val: val.at[i].set(weights[i] * val[i]), input_trajs)
+        input_trajs = jax.vmap(lambda x, y: x * y, in_axes=(0, 0))(input_trajs, weights)
 
         # calculate new input
         input_trajs = jnp.sum(input_trajs, axis=0)
         act = self.model.constraints.clip_act_jax(act_prev, input_trajs[0])
-        return act, input_trajs, trajs
+        return act, input_trajs, trajs, key
 
     def policy(self, state: RobotState[VOmega]) -> VOmega:
         state_jax = jnp.array(state.to_numpy())
-        self.key, sub_key = jax.random.split(self.key)
-        self.act_prev, self.input_traj_prev, self.sampled_trajs = self.policy_jax(state_jax, sub_key, self.act_prev, self.input_traj_prev)
+        self.act_prev, self.input_traj_prev, self.sampled_trajs, self.key = self.policy_jax(
+            state_jax, self.goal, self.act_prev, self.input_traj_prev, self.key
+        )
         return VOmega(self.act_prev[0], self.act_prev[1])
