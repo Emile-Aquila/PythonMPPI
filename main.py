@@ -1,47 +1,68 @@
-from models.robot_model import RobotState
-from mppi import MPPIPlanner
-from objects.field import Point2D, Field, GenTestField, Circle
+import jax
+import jax.numpy as jnp
 import numpy as np
+from models.robot_model import RobotState
+from mppi import MPPIPlanner, SamplingData, SamplingParams
+from objects.field import Point2D, Field, GenTestField, Circle
 from models.veltypes import VOmega, VOmegaConstraints
 from models.dynamics_model import ParallelTwoWheelVehicleModel
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import math
 import functools
-import os
 import time
-import jax.numpy as jnp
+
+
+@jax.jit
+def terminal_cost(state: jnp.ndarray, goal: jnp.ndarray):
+    diff = state[:3] - goal
+    diff = diff.at[2].set(diff[2] / 2.0)
+    return jnp.sqrt(jnp.power(diff, 2).sum())
+
+
+@jax.jit
+def stage_cost(state: jnp.ndarray, goal: jnp.ndarray):
+    diff = state[:3] - goal
+    diff = diff.at[2].set(diff[2] / 2.0)
+    return jnp.sqrt(jnp.power(diff, 2).sum())
 
 
 def main():
     field: Field = GenTestField(0)
     dt = 0.1
-    n_cpu: int = os.cpu_count()
+
+    horizon = 40
+    num_samples = 500
+    act_spec_size = 2
 
     constraints = VOmegaConstraints(1.0, 0.8, 0.2, 0.3)
     model = ParallelTwoWheelVehicleModel([Circle(0.0, 0.0, 0.2)], dt, constraints)
 
-    planner = MPPIPlanner(model, 40, 500, 0.3, 1.0, 0.8, n_cpu)
-    planner.set_goal(jnp.array([10.0, 10.0, math.pi / 2.0]))
+    planner: MPPIPlanner = MPPIPlanner(model, stage_cost, terminal_cost)
+    goal: jnp.ndarray = jnp.array([10.0, 10.0, math.pi / 2.0])
     fig, ax = plt.subplots()
 
     state: RobotState[VOmega] = RobotState(Point2D(0.5, 0.5, 0.0), VOmega(0.0, 0.0))
 
-    # profile for planner.policy
-    # pr = cProfile.Profile()
-    # pr.enable()
-    # act = planner.policy(state)
-    # pr.disable()
-
-    # s = io.StringIO()
-    # sortby = 'cumulative'
-    # ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    # ps.print_stats()
-    # print(s.getvalue())
+    # init SamplingData
+    sampling_data: SamplingData = SamplingData(
+        sampled_state_traj=jnp.zeros((num_samples, horizon, 5)),
+        input_traj=jnp.zeros((horizon, act_spec_size)),
+        input=jnp.zeros(act_spec_size),
+        params=SamplingParams(
+            num_samples=num_samples,
+            horizon=horizon,
+            lambda_=0.3,
+            sigma_v=1.0,
+            sigma_omega=0.8,
+            act_spec_size=act_spec_size,
+            key=jax.random.PRNGKey(0)
+        )
+    )
 
     # jit compile
     print("start jit compile")
-    planner.policy(state)
+    _ = planner.policy(jnp.array(state.to_numpy()), goal, sampling_data)
     print("end jit compile")
 
     start_time = time.perf_counter()
@@ -49,17 +70,17 @@ def main():
     sampled_trajs_list = []
 
     for _ in range(200):
-        act = planner.policy(state)
+        act, sampling_data = planner.policy(jnp.array(state.to_numpy()), goal, sampling_data)
         state = model.step(state, act)
         print(state.to_numpy())
         states.append(state)
-        sampled_trajs_list.append(planner.sampled_trajs)
+        sampled_trajs_list.append(sampling_data.sampled_state_traj)
 
     states = np.array(states)
     end_time = time.perf_counter()
     print(f"elapsed time: {end_time - start_time} [s]")
 
-    def update(state_sampled_trajs: jnp.ndarray, field, goal=planner.goal):
+    def update(state_sampled_trajs: jnp.ndarray, field):
         state, sampled_trajs = state_sampled_trajs
         ax.cla()
         ax.plot(goal[0], goal[1], "ro")
